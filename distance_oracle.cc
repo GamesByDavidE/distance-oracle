@@ -78,6 +78,7 @@ public:
                                                          NodeIndex t);
 
 private:
+  using Entry = std::pair<Weight, NodeIndex>;
   Weight LowerBound(NodeIndex s, NodeIndex t) const;
 
   NodeIndex node_count_;
@@ -86,6 +87,7 @@ private:
   std::vector<NodeIndex> arc_heads_;
   std::vector<Weight> arc_weights_;
   ShortestPathTree tree_;
+  std::vector<std::vector<Entry>> buckets_;
 };
 
 DistanceOracle::DistanceOracle(NodeIndex node_count,
@@ -124,19 +126,26 @@ DistanceOracle::FindShortestPath(NodeIndex s, NodeIndex t) {
   assert(t < node_count_);
   Epoch epoch = tree_.NewEpoch(node_count_);
   {
-    using Entry = std::pair<Weight, NodeIndex>;
-    std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> queue;
     tree_.UpdateParent(s, {.distance = 0, .parent = s, .epoch = epoch});
-    queue.push({0, s});
+    buckets_.resize(1);
+    buckets_.front() = {{0, s}};
+    long front = 0;
+    bool found_t = false;
     for (;;) {
-      if (queue.empty())
-        return std::nullopt;
-      auto [dist_tail, tail] = queue.top();
-      queue.pop();
-      if (tail == t)
-        break;
+      if (buckets_[front].empty()) {
+        if (found_t)
+          break;
+        ++front;
+        if (buckets_.size() <= front)
+          return std::nullopt;
+        continue;
+      }
+      auto [dist_tail, tail] = buckets_[front].back();
+      buckets_[front].pop_back();
       if (dist_tail != tree_.distance(tail))
         continue;
+      if (tail == t)
+        found_t = true;
       for (ArcIndex arc = first_outgoing_arcs_[tail];
            arc < first_outgoing_arcs_[tail + 1]; ++arc) {
         NodeIndex head = arc_heads_[arc];
@@ -144,8 +153,14 @@ DistanceOracle::FindShortestPath(NodeIndex s, NodeIndex t) {
             dist_tail +
             (arc_weights_[arc] - LowerBound(tail, t) + LowerBound(head, t));
         if (tree_.UpdateParent(
-                head, {.distance = dist_head, .parent = tail, .epoch = epoch}))
-          queue.push({dist_head, head});
+                head,
+                {.distance = dist_head, .parent = tail, .epoch = epoch})) {
+          long i = std::lrint(dist_head);
+          assert(0 <= i);
+          if (buckets_.size() <= i)
+            buckets_.resize(i + 1);
+          buckets_[i].push_back({dist_head, head});
+        }
       }
     }
   }
