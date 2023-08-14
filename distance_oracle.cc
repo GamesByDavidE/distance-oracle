@@ -155,8 +155,7 @@ DistanceOracle::FindShortestPath(NodeIndex s, NodeIndex t) {
         if (tree_.UpdateParent(
                 head,
                 {.distance = dist_head, .parent = tail, .epoch = epoch})) {
-          long i = std::lrint(dist_head);
-          assert(0 <= i);
+          auto i = static_cast<decltype(buckets_)::size_type>(dist_head);
           if (buckets_.size() <= i)
             buckets_.resize(i + 1);
           buckets_[i].push_back({dist_head, head});

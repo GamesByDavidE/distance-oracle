@@ -62,7 +62,7 @@ static void Relax(struct Node *node, Weight distance, NodeIndex parent,
   node->distance = distance;
   node->parent = parent;
   node->epoch = epoch;
-  BucketIndex i = lrint(fmax(0, fmin(node->distance, BUCKET_COUNT - 1)));
+  BucketIndex i = (BucketIndex)fmax(0, fmin(node->distance, BUCKET_COUNT - 1));
   if (*bucket_count <= i)
     *bucket_count = i + 1;
   Splice(&node->entry, &buckets[i]);
